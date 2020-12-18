@@ -15,12 +15,11 @@ def make_dataset(text, catagories, batch_size):
     print(catagories.ndim)
     print(np.array(text).shape)
     dataset = tf.data.Dataset.from_tensor_slices(
-        (np.array(text), catagories))
-    dataset = dataset.shuffle(buffer_size=8000)
+        list_of_tuples(tf.constant(np.array(text)), tf.constant(catagories))
+    )
+    dataset = dataset.shuffle(buffer_size=9000)
     dataset = dataset.batch(batch_size, drop_remainder=True)
     print(dataset.element_spec)
-
-    # print(dataset)
 
     return dataset
 
@@ -82,7 +81,7 @@ def process_data_set(label_to_int):
                         encoding="utf8", errors='ignore')
             fileText = file.read()
 
-            test.append([clean_text(fileText)])
+            test.append(clean_text(fileText))
             test_labels.append(label_map)
             file.close()
 
@@ -94,20 +93,18 @@ def process_data_set(label_to_int):
                         encoding="utf8", errors='ignore')
             fileText = file.read()
             train_labels.append(label_map)
-            train.append([clean_text(fileText)])
+            train.append(clean_text(fileText))
             file.close()
 
     # create catagorical array and map labels to catagorical array
     train_cats = tf.keras.utils.to_categorical(train_labels, num_classes=20)
     test_cats = tf.keras.utils.to_categorical(test_labels, num_classes=20)
 
-    test_dataset = make_dataset(test, test_cats, 32)
-    train_dataset = make_dataset(train, train_cats, 32)
-    # test = train_dataset.take(1)
-    # for elm in test:
-    #     print(elm)
+    # I am not using datasets because they are complicating everything
+    #test_dataset = make_dataset(test, test_cats, 32)
+    #train_dataset = make_dataset(train, train_cats, 32)
 
-    return(test_dataset, train_dataset)
+    return(test, test_cats, train, train_cats)
 
 # helper function to plot results
 
@@ -147,7 +144,7 @@ label_mappings = dict({
 
 def build_classifier_model_with_bert():
     text_input = tf.keras.layers.Input(
-        shape=(), dtype=tf.string, name='text')
+        shape=(), dtype=tf.string, name='inputs')
     preprocessing_layer = hub.KerasLayer(
         "https://tfhub.dev/tensorflow/albert_en_preprocess/2", name='preprocessing')
     encoder_inputs = preprocessing_layer(text_input)
@@ -212,22 +209,21 @@ data = process_data_set(label_mappings)
 # bert_test()
 
 
-# checkpoint_path = "./training1ckpt/cp.ckpt"
-# checkpoint_dir = os.path.dirname(checkpoint_path)
-# # Create a callback that saves the model's weights
-# cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
-#                                                  save_weights_only=True,
-#                                                  verbose=1)
+checkpoint_path = "./training1ckpt/cp.ckpt"
+checkpoint_dir = os.path.dirname(checkpoint_path)
+# Create a callback that saves the model's weights
+cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
+                                                 save_weights_only=True,
+                                                 verbose=1)
 
 
-# classifier_model = build_classifier_model_with_bert()
-# classifier_model.compile(loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True),
-#                          optimizer=tf.keras.optimizers.Adam(1e-4),
-#                          metrics=[tf.keras.metrics.CategoricalAccuracy()])
-# history = classifier_model.fit(data[0], epochs=10,
-#                                validation_data=data[1],
-#                                validation_steps=30,
-#                                callbacks=[cp_callback])
+classifier_model = build_classifier_model_with_bert()
+classifier_model.compile(loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True),
+                         optimizer=tf.keras.optimizers.Adam(3e-5),
+                         metrics=[tf.keras.metrics.CategoricalAccuracy()])
+history = classifier_model.fit(np.array(data[0]), data[1], epochs=10,
+                               callbacks=[cp_callback])
 
 
 # print(history)
+plot_graphs(history, tf.keras.metrics.CategoricalAccuracy())
