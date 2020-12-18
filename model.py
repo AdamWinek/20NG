@@ -1,15 +1,17 @@
 import numpy as np
 import tensorflow_datasets as tfds
 import tensorflow as tf
+import tensorflow_text as text
+
 import tensorflow_hub as hub
 import matplotlib.pyplot as plt
 import os
 import string
 
 
-def make_dataset(labeled_array, batch_size):
-    dataset = tf.data.Dataset.from_tensor_slices(labeled_array)
-    dataset = dataset.shuffle(buffer_size=len(labeled_array))
+def make_dataset(text, catagories, batch_size):
+    dataset = tf.data.Dataset.from_tensor_slices((text, catagories))
+    dataset = dataset.shuffle(buffer_size=len(text))
     dataset = dataset.batch(batch_size)
     return dataset
 
@@ -89,7 +91,9 @@ def process_data_set(label_to_int):
     train_cats = tf.keras.utils.to_categorical(train_labels, num_classes=20)
     test_cats = tf.keras.utils.to_categorical(test_labels, num_classes=20)
 
-    return (train, test, train_cats, test_cats)
+    test_dataset = make_dataset(test, test_cats, 32)
+    train_dataset = make_dataset(train, train_cats, 32)
+    return(test_dataset, train_dataset)
 
 
 def plot_graphs(history, metric):
@@ -124,7 +128,7 @@ label_mappings = dict({
 })
 
 
-def build_classifier_model_with_bert(bert_encoder, bert_preprocess):
+def build_classifier_model_with_bert():
     text_input = tf.keras.layers.Input(shape=(), dtype=tf.string, name='text')
     preprocessing_layer = hub.KerasLayer(
         "https://tfhub.dev/tensorflow/albert_en_preprocess/2", name='preprocessing')
@@ -138,4 +142,13 @@ def build_classifier_model_with_bert(bert_encoder, bert_preprocess):
     return tf.keras.Model(text_input, net)
 
 
+# get data returns  (test_dataset, train_dataset)
 data = process_data_set(label_mappings)
+classifier_model = build_classifier_model_with_bert()
+classifier_model.compile(loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True),
+                         optimizer=tf.keras.optimizers.Adam(1e-4),
+                         metrics=['accuracy'])
+history = classifier_model.fit(data[0], epochs=10,
+                               validation_data=data[1],
+                               validation_steps=30)
+print(history)
