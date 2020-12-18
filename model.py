@@ -11,12 +11,17 @@ import string
 
 def make_dataset(text, catagories, batch_size):
 
-    features = tf.constant(text)
-
-    labels = tf.constant(catagories)
-    dataset = tf.data.Dataset.from_tensor_slices((features, labels))
+    # labels = tf.constant(catagories)
+    print(catagories.ndim)
+    print(np.array(text).shape)
+    dataset = tf.data.Dataset.from_tensor_slices(
+        (np.array(text), catagories))
     dataset = dataset.shuffle(buffer_size=8000)
-    dataset = dataset.batch(batch_size)
+    dataset = dataset.batch(batch_size, drop_remainder=True)
+    print(dataset.element_spec)
+
+    # print(dataset)
+
     return dataset
 
 
@@ -64,6 +69,7 @@ def process_data_set(label_to_int):
     train = []
     test_labels = []
     train_labels = []
+    # creates arrays of labels and categrories for each NG
     for cat in catagories:
         path = os.path.join(TESTDIR, cat)
         # map each label to an int
@@ -76,7 +82,7 @@ def process_data_set(label_to_int):
                         encoding="utf8", errors='ignore')
             fileText = file.read()
 
-            test.append(clean_text(fileText))
+            test.append([clean_text(fileText)])
             test_labels.append(label_map)
             file.close()
 
@@ -88,7 +94,7 @@ def process_data_set(label_to_int):
                         encoding="utf8", errors='ignore')
             fileText = file.read()
             train_labels.append(label_map)
-            train.append(clean_text(fileText))
+            train.append([clean_text(fileText)])
             file.close()
 
     # create catagorical array and map labels to catagorical array
@@ -97,8 +103,13 @@ def process_data_set(label_to_int):
 
     test_dataset = make_dataset(test, test_cats, 32)
     train_dataset = make_dataset(train, train_cats, 32)
-    print(train_dataset.take(23))
+    # test = train_dataset.take(1)
+    # for elm in test:
+    #     print(elm)
+
     return(test_dataset, train_dataset)
+
+# helper function to plot results
 
 
 def plot_graphs(history, metric):
@@ -109,6 +120,7 @@ def plot_graphs(history, metric):
     plt.legend([metric, 'val_'+metric])
 
 
+# mappings of NG label to integer
 label_mappings = dict({
     'alt.atheism': 0,
     'comp.graphics': 1,
@@ -134,7 +146,8 @@ label_mappings = dict({
 
 
 def build_classifier_model_with_bert():
-    text_input = tf.keras.layers.Input(shape=(), dtype=tf.string, name='text')
+    text_input = tf.keras.layers.Input(
+        shape=(), dtype=tf.string, name='text')
     preprocessing_layer = hub.KerasLayer(
         "https://tfhub.dev/tensorflow/albert_en_preprocess/2", name='preprocessing')
     encoder_inputs = preprocessing_layer(text_input)
@@ -192,27 +205,29 @@ def bert_test():
     print(tf.sigmoid(bert_raw_result))
 
 
+tf.get_logger().setLevel('ERROR')
+
 # get data returns  (test_dataset, train_dataset)
 data = process_data_set(label_mappings)
 # bert_test()
 
 
-checkpoint_path = "./training1ckpt/cp.ckpt"
-checkpoint_dir = os.path.dirname(checkpoint_path)
-# Create a callback that saves the model's weights
-cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
-                                                 save_weights_only=True,
-                                                 verbose=1)
+# checkpoint_path = "./training1ckpt/cp.ckpt"
+# checkpoint_dir = os.path.dirname(checkpoint_path)
+# # Create a callback that saves the model's weights
+# cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
+#                                                  save_weights_only=True,
+#                                                  verbose=1)
 
 
-classifier_model = build_classifier_model_with_bert()
-classifier_model.compile(loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True),
-                         optimizer=tf.keras.optimizers.Adam(1e-4),
-                         metrics=[tf.keras.metrics.CategoricalAccuracy()])
-history = classifier_model.fit(data[0], epochs=10,
-                               validation_data=data[1],
-                               validation_steps=30,
-                               callbacks=[cp_callback])
+# classifier_model = build_classifier_model_with_bert()
+# classifier_model.compile(loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True),
+#                          optimizer=tf.keras.optimizers.Adam(1e-4),
+#                          metrics=[tf.keras.metrics.CategoricalAccuracy()])
+# history = classifier_model.fit(data[0], epochs=10,
+#                                validation_data=data[1],
+#                                validation_steps=30,
+#                                callbacks=[cp_callback])
 
 
 # print(history)
