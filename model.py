@@ -10,8 +10,12 @@ import string
 
 
 def make_dataset(text, catagories, batch_size):
-    dataset = tf.data.Dataset.from_tensor_slices((text, catagories))
-    dataset = dataset.shuffle(buffer_size=len(text))
+
+    features = tf.constant(text)
+
+    labels = tf.constant(catagories)
+    dataset = tf.data.Dataset.from_tensor_slices((features, labels))
+    dataset = dataset.shuffle(buffer_size=8000)
     dataset = dataset.batch(batch_size)
     return dataset
 
@@ -93,6 +97,7 @@ def process_data_set(label_to_int):
 
     test_dataset = make_dataset(test, test_cats, 32)
     train_dataset = make_dataset(train, train_cats, 32)
+    print(train_dataset.take(23))
     return(test_dataset, train_dataset)
 
 
@@ -138,17 +143,76 @@ def build_classifier_model_with_bert():
     outputs = encoder(encoder_inputs)
     net = outputs['pooled_output']
     net = tf.keras.layers.Dropout(0.1)(net)
+    net = tf.keras.layers.Dense(32, activation="relu")(net)
     net = tf.keras.layers.Dense(20, activation=None, name='classifier')(net)
     return tf.keras.Model(text_input, net)
 
 
+def bert_test():
+    bert_preprocess_model = hub.KerasLayer(
+        "https://tfhub.dev/tensorflow/albert_en_preprocess/2")
+
+    text_test = ["""From: bjorndahl@augustana.ab.ca
+    Subject: Re: document of .RTF
+    Organization: Augustana University College, Camrose, Alberta
+    Lines: 10
+
+    In article <1993Mar30.113436.7339@worak.kaist.ac.kr>, tjyu@eve.kaist.ac.kr (Yu TaiJung) writes:
+    > Does anybody have document of .RTF file or know where I can get it?
+    >
+    > Thanks in advance. :)
+
+    I got one from Microsoft tech support.
+
+    --
+    Sterling G. Bjorndahl, bjorndahl@Augustana.AB.CA or bjorndahl@camrose.uucp
+    Augustana University College, Camrose, Alberta, Canada      (403) 679-1100
+    """]
+    text_preprocessed = bert_preprocess_model(text_test)
+    print(text_preprocessed)
+    print(f'Keys       : {list(text_preprocessed.keys())}')
+    print(f'Shape      : {text_preprocessed["input_word_ids"].shape}')
+    print(f'Word Ids   : {text_preprocessed["input_word_ids"][0, :100]}')
+    print(f'Input Mask : {text_preprocessed["input_mask"][0, :100]}')
+    print(f'Type Ids   : {text_preprocessed["input_type_ids"][0, :100]}')
+
+    bert_model = hub.KerasLayer(
+        "https://tfhub.dev/tensorflow/albert_en_base/2")
+
+    bert_results = bert_model(text_preprocessed)
+
+    print(f'Loaded BERT: {"https://tfhub.dev/tensorflow/albert_en_base/2"}')
+    print(f'Pooled Outputs Shape:{bert_results["pooled_output"].shape}')
+    print(f'Pooled Outputs Values:{bert_results["pooled_output"][0, :12]}')
+    print(f'Sequence Outputs Shape:{bert_results["sequence_output"].shape}')
+    print(f'Sequence Outputs Values:{bert_results["sequence_output"][0, :12]}')
+
+    classifier_model = build_classifier_model_with_bert()
+    bert_raw_result = classifier_model(tf.constant(text_test))
+    print(tf.sigmoid(bert_raw_result))
+
+
 # get data returns  (test_dataset, train_dataset)
 data = process_data_set(label_mappings)
+# bert_test()
+
+
+checkpoint_path = "./training1ckpt/cp.ckpt"
+checkpoint_dir = os.path.dirname(checkpoint_path)
+# Create a callback that saves the model's weights
+cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
+                                                 save_weights_only=True,
+                                                 verbose=1)
+
+
 classifier_model = build_classifier_model_with_bert()
 classifier_model.compile(loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True),
                          optimizer=tf.keras.optimizers.Adam(1e-4),
-                         metrics=['accuracy'])
+                         metrics=[tf.keras.metrics.CategoricalAccuracy()])
 history = classifier_model.fit(data[0], epochs=10,
                                validation_data=data[1],
-                               validation_steps=30)
-print(history)
+                               validation_steps=30,
+                               callbacks=[cp_callback])
+
+
+# print(history)
