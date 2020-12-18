@@ -222,7 +222,7 @@ classifier_model.compile(loss=tf.keras.losses.CategoricalCrossentropy(from_logit
                          optimizer=tf.keras.optimizers.Adam(3e-5),
                          metrics=[tf.keras.metrics.CategoricalAccuracy()])
 history = classifier_model.fit(np.array(data[0]), data[1], epochs=10,
-                               callbacks=[cp_callback])
+                               callbacks=[cp_callback], shuffle=True, validation_split=0.1)
 
 
 # print(history)
