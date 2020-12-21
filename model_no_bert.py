@@ -2,9 +2,12 @@ import numpy as np
 import tensorflow_datasets as tfds
 import tensorflow as tf
 import tensorflow_text as text
-
+from nltk.corpus import stopwords
 import tensorflow_hub as hub
 import matplotlib.pyplot as plt
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras.preprocessing.sequence import pad_sequences
 import os
 import string
 
@@ -35,7 +38,26 @@ def clean_text(text):
     translator = str.maketrans('', '', string.punctuation)
 
     text = text.translate(translator).replace('\n', " ").replace('\t', " ")
+
+    # remove stop words
+    STOPWORDS = set(stopwords.words('english'))
+    for word in STOPWORDS:
+        token = ' ' + word + ' '
+        text = text.replace(token, ' ')
+        text = text.replace(' ', ' ')
+
     return text
+
+
+def createTokenizer(text, vocab_size, oov_token):
+    tokenizer = Tokenizer(num_words=vocab_size,
+                          oov_token=oov_token, lower=True,)
+    tokenizer.fit_on_texts(text)
+    word_index = tokenizer.word_index
+    print(dict(list(word_index.items())[0:10]))
+    print(dict(list(word_index.items())[vocab_size-10:vocab_size]))
+
+    return tokenizer
 
 
 def process_data_set(label_to_int):
@@ -101,12 +123,19 @@ def process_data_set(label_to_int):
     test_cats = tf.keras.utils.to_categorical(test_labels, num_classes=20)
 
     # I am not using datasets because they are complicating everything
-    #test_dataset = make_dataset(test, test_cats, 32)
-    #train_dataset = make_dataset(train, train_cats, 32)
+    # test_dataset = make_dataset(test, test_cats, 32)
+    # train_dataset = make_dataset(train, train_cats, 32)
 
     return(test, test_cats, train, train_cats)
 
 # helper function to plot results
+
+
+def get_average_article_length(articles):
+    wordCount = 0
+    for article in articles:
+        wordCount += len(article.split(" "))
+    return int(wordCount / len(articles))
 
 
 def plot_graphs(history, metric):
@@ -139,78 +168,52 @@ label_mappings = dict({
     'talk.politics.mideast': 17,
     'talk.politics.misc': 18,
     'talk.religion.misc': 19
+
+
 })
 
 
-def build_classifier_model_with_bert():
-    text_input = tf.keras.layers.Input(
-        shape=(), dtype=tf.string, name='inputs')
-    preprocessing_layer = hub.KerasLayer(
-        "https://tfhub.dev/tensorflow/albert_en_preprocess/2", name='preprocessing')
-    encoder_inputs = preprocessing_layer(text_input)
-    encoder = hub.KerasLayer("https://tfhub.dev/tensorflow/albert_en_base/2",
-                             trainable=True, name='BERT_encoder')
-    outputs = encoder(encoder_inputs)
-    net = outputs['pooled_output']
-    net = tf.keras.layers.Dropout(0.1)(net)
-    net = tf.keras.layers.Dense(32, activation="relu")(net)
-    net = tf.keras.layers.Dense(
-        20, activation="softmax", name='classifier')(net)
-    return tf.keras.Model(text_input, net)
+def build_classifier_model(vocab_size):
+    model = tf.keras.Sequential([
+        tf.keras.layers.Embedding(vocab_size, 128),
+        tf.keras.layers.Bidirectional(
+            tf.keras.layers.LSTM(128, return_sequences=True)),
+        tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(128)),
 
-
-def bert_test():
-    bert_preprocess_model = hub.KerasLayer(
-        "https://tfhub.dev/tensorflow/albert_en_preprocess/2")
-
-    text_test = ["""From: bjorndahl@augustana.ab.ca
-    Subject: Re: document of .RTF
-    Organization: Augustana University College, Camrose, Alberta
-    Lines: 10
-
-    In article <1993Mar30.113436.7339@worak.kaist.ac.kr>, tjyu@eve.kaist.ac.kr (Yu TaiJung) writes:
-    > Does anybody have document of .RTF file or know where I can get it?
-    >
-    > Thanks in advance. :)
-
-    I got one from Microsoft tech support.
-
-    --
-    Sterling G. Bjorndahl, bjorndahl@Augustana.AB.CA or bjorndahl@camrose.uucp
-    Augustana University College, Camrose, Alberta, Canada      (403) 679-1100
-    """]
-    text_preprocessed = bert_preprocess_model(text_test)
-    print(text_preprocessed)
-    print(f'Keys       : {list(text_preprocessed.keys())}')
-    print(f'Shape      : {text_preprocessed["input_word_ids"].shape}')
-    print(f'Word Ids   : {text_preprocessed["input_word_ids"][0, :100]}')
-    print(f'Input Mask : {text_preprocessed["input_mask"][0, :100]}')
-    print(f'Type Ids   : {text_preprocessed["input_type_ids"][0, :100]}')
-
-    bert_model = hub.KerasLayer(
-        "https://tfhub.dev/tensorflow/albert_en_base/2")
-
-    bert_results = bert_model(text_preprocessed)
-
-    print(f'Loaded BERT: {"https://tfhub.dev/tensorflow/albert_en_base/2"}')
-    print(f'Pooled Outputs Shape:{bert_results["pooled_output"].shape}')
-    print(f'Pooled Outputs Values:{bert_results["pooled_output"][0, :12]}')
-    print(f'Sequence Outputs Shape:{bert_results["sequence_output"].shape}')
-    print(f'Sequence Outputs Values:{bert_results["sequence_output"][0, :12]}')
-
-    classifier_model = build_classifier_model_with_bert()
-    bert_raw_result = classifier_model(tf.constant(text_test))
-    print(tf.sigmoid(bert_raw_result))
+        #    tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(32)),
+        tf.keras.layers.Dense(128, activation='relu'),
+        tf.keras.layers.Dropout(0.3),
+        tf.keras.layers.Dense(20, activation='softmax')
+    ])
+    return model
 
 
 tf.get_logger().setLevel('ERROR')
 
-# get data returns  (test_dataset, train_dataset)
+# get data returns  (test_dataset, test_labels,train_dataset, train_labels)
 data = process_data_set(label_mappings)
-# bert_test()
 
 
-checkpoint_path = "./training1ckpt/cp.ckpt"
+# create tokenizer for text
+tokenizer = createTokenizer(data[0], 10000,  "<OOV>")
+avg_article_length = get_average_article_length(data[0])
+print(avg_article_length)
+
+
+# create train sequences
+train_sequences = tokenizer.texts_to_sequences(data[2])
+print(train_sequences[10])
+train_padded = pad_sequences(
+    train_sequences, maxlen=(avg_article_length + 100), padding="post", truncating="post")
+
+# create test sequences
+test_sequences = tokenizer.texts_to_sequences(data[0])
+print(train_sequences[10])
+test_padded = pad_sequences(
+    test_sequences, maxlen=avg_article_length + 100, padding="post", truncating="post")
+
+
+checkpoint_path = "./training_no_bert_ckpt/cp.ckpt"
 checkpoint_dir = os.path.dirname(checkpoint_path)
 # Create a callback that saves the model's weights
 cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
@@ -218,13 +221,14 @@ cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
                                                  verbose=1)
 
 
-classifier_model = build_classifier_model_with_bert()
+classifier_model = build_classifier_model(10000)
 classifier_model.compile(loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True),
-                         optimizer=tf.keras.optimizers.Adam(3e-5),
+                         optimizer=tf.keras.optimizers.Adam(),
                          metrics=[tf.keras.metrics.CategoricalAccuracy()])
-history = classifier_model.fit(np.array(data[2]), data[3], epochs=10,
-                               callbacks=[cp_callback], shuffle=True, validation_data=(data[0], data[1]))
+history = classifier_model.fit(np.array(train_padded), data[3], epochs=10,
+                               callbacks=[cp_callback], shuffle=True, validation_data=(test_padded, data[1]))
 
 
-# print(history)
-plot_graphs(history, tf.keras.metrics.CategoricalAccuracy())
+# # print(history)
+plot_graphs(history, "accuracy")
+plot_graphs(history, "loss")
