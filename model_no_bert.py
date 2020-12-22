@@ -196,6 +196,10 @@ data = process_data_set(label_mappings)
 
 # create tokenizer for text
 tokenizer = createTokenizer(data[0], 10000,  "<OOV>")
+# FIXME yicheng: I would not set the max length to the avg length. Instead I set
+# the max length to be x s.t. ~80% of the dataset will not be modified. You can
+# calculate that by sorting all the articles in order of article length, and
+# then take the 80th percentile.
 avg_article_length = get_average_article_length(data[0])
 print(avg_article_length)
 
@@ -215,6 +219,8 @@ test_padded = pad_sequences(
 
 checkpoint_path = "./training_no_bert_ckpt/cp.ckpt"
 checkpoint_dir = os.path.dirname(checkpoint_path)
+# FIXME yicheng: I would probably try to make the filepath not static so you can
+# save more than 1. See here for how: https://www.tensorflow.org/api_docs/python/tf/keras/callbacks/ModelCheckpoint
 # Create a callback that saves the model's weights
 cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
                                                  save_weights_only=True,
@@ -232,3 +238,15 @@ history = classifier_model.fit(np.array(train_padded), data[3], epochs=10,
 # # print(history)
 plot_graphs(history, "accuracy")
 plot_graphs(history, "loss")
+
+# FIXME yicheng: as an organizational note, I would suggest splitting this into
+# three files for now:
+#
+# data.py -- this handles loading the data of 20NG, computing the vocab, and all
+#   the input data related functionalities
+# model.py -- this handles the actual keras model construction, and exposes just
+#   the model
+# main.py -- this drives everything together and handles command line input. You
+#   might want to factor out the bottom of this file into a "main function" with
+#   some inputs that you can specify over the command line. You might want to
+#   familiarize yourself with the ArgumentParser class in python to do so.
