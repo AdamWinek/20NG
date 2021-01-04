@@ -83,8 +83,9 @@ if(use_glove):
                                    callbacks=[cp_callback], shuffle=True, validation_data=(padded_test, test_labels))
 
     # prints metrics related to the training
-    plot_graphs(history, "Accuracy")
-    plot_graphs(history, "Loss")
+    print(history.history.keys)
+    plot_graphs(history.history, "accuracy")
+    plot_graphs(history.history, "loss")
 
 
 else:
@@ -111,5 +112,5 @@ else:
                                    callbacks=[cp_callback], shuffle=True, validation_data=(padded_test, test_labels))
 
     # prints metrics related to the training
-    plot_graphs(history, "Accuracy")
-    plot_graphs(history, "Loss")
+    plot_graphs(history, "accuracy")
+    plot_graphs(history, "loss")

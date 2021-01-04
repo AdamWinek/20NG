@@ -1,1 +1,4 @@
 20news-bydate
+data/*
+checkpoints/*
+__pycache__/*
