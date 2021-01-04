@@ -4,6 +4,8 @@ import string
 from nltk.corpus import stopwords
 import tensorflow as tf
 from tensorflow.keras.preprocessing.sequence import pad_sequences
+import urllib
+import zipfile
 
 
 def get_x_percent_length(x, articles):
@@ -144,3 +146,26 @@ def handle_padding(max_len, text, tokenizer):
     padded = pad_sequences(
         sequences, maxlen=(max_len), padding="post", truncating="post")
     return padded
+
+
+# Available dimensions for 6B data is 50, 100, 200, 300
+def download_glove_dataset(embedding_dimension):
+    data_directory = './data/glove'
+
+    if not os.path.isdir(data_directory):
+        os.makedirs(data_directory)
+
+    glove_weights_file_path = os.path.join(
+        data_directory, f'glove.6B.{embedding_dimension}d.txt'.format(embedding_dimension))
+
+    if not os.path.isfile(glove_weights_file_path):
+        # Glove embedding weights can be downloaded from https://nlp.stanford.edu/projects/glove/
+        glove_fallback_url = 'http://nlp.stanford.edu/data/glove.6B.zip'
+        local_zip_file_path = os.path.join(
+            data_directory, os.path.basename(glove_fallback_url))
+        if not os.path.isfile(local_zip_file_path):
+            print(f'Retreiving glove weights from {glove_fallback_url}')
+            urllib.request.urlretrieve(glove_fallback_url, local_zip_file_path)
+        with zipfile.ZipFile(local_zip_file_path, 'r') as z:
+            print(f'Extracting glove weights from {local_zip_file_path}')
+            z.extractall(path=data_directory)

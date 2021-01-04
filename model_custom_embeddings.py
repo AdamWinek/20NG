@@ -4,15 +4,16 @@ import tensorflow_text as text
 import tensorflow_hub as hub
 
 
-def build_classifier_model(vocab_size):
+def build_classifier_model(vocab_size, embedding_dimension):
     model = tf.keras.Sequential([
-        tf.keras.layers.Embedding(vocab_size, 128),
+        tf.keras.layers.Embedding(vocab_size, embedding_dimension),
         tf.keras.layers.Bidirectional(
-            tf.keras.layers.LSTM(128, return_sequences=True)),
-        tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(128)),
+            tf.keras.layers.LSTM(embedding_dimension, return_sequences=True)),
+        tf.keras.layers.Bidirectional(
+            tf.keras.layers.LSTM(embedding_dimension)),
 
         #    tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(32)),
-        tf.keras.layers.Dense(128, activation='relu'),
+        tf.keras.layers.Dense(embedding_dimension, activation='relu'),
         tf.keras.layers.Dropout(0.3),
         tf.keras.layers.Dense(20, activation='softmax')
     ])
