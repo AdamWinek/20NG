@@ -61,4 +61,4 @@ def construct_embedding_layer(vocab_size, embedding_dimension, text):
                                     shape=(int(vocab_size + 2),
                                            embedding_dimension), trainable=False)
 
-    return(tf.keras.layers.Embedding(vocab_size + 2, embedding_dimension, embeddings_initializer=tf.initializers.constant(embedding_weights), trainable=False), word2idx, UNKNOWN_TOKEN)
+    return(tf.keras.layers.Embedding(vocab_size + 2, embedding_dimension, embeddings_initializer=tf.initializers.constant(glove_weights_initializer), trainable=False), word2idx, UNKNOWN_TOKEN)
