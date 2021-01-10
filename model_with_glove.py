@@ -23,7 +23,7 @@ def build_glove_classifier_model(vocab_size, embedding_dimension, embedding_laye
     return model
 
 
-def construct_embedding_layer(vocab_size, embedding_dimension, text):
+def construct_embedding_layer(vocab_size, embedding_dimension):
     data_directory = './data/glove'
 
     weights = []

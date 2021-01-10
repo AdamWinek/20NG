@@ -6,6 +6,7 @@ import tensorflow as tf
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 import urllib
 import zipfile
+import numpy as np
 
 
 def get_x_percent_length(x, articles):
@@ -123,6 +124,7 @@ def clean_text(text):
         token = ' ' + word + ' '
         text = text.replace(token, ' ')
         text = text.replace(' ', ' ')
+        text = text.lower()
 
     return text
 
@@ -169,3 +171,16 @@ def download_glove_dataset(embedding_dimension):
         with zipfile.ZipFile(local_zip_file_path, 'r') as z:
             print(f'Extracting glove weights from {local_zip_file_path}')
             z.extractall(path=data_directory)
+
+
+def words_to_glove_idx(text, word2idx, UNKNOWN_TOKEN):
+
+    converted = []
+    for article in text:
+        current_article = []
+        for word in article.split():
+            current_article.append(word2idx.get(
+                word, UNKNOWN_TOKEN))
+        current_article = np.asarray(current_article).astype('float32')
+        converted.append(np.array(current_article))
+    return converted
