@@ -5,6 +5,11 @@ from model_custom_embeddings import build_classifier_model
 import tensorflow as tf
 import numpy as np
 from tensorflow.keras.preprocessing.sequence import pad_sequences
+import enquiries
+from datetime import date
+
+import argparse
+
 
 # helper method to plot graphs at the completion of training
 # pass in the trained model and the name of the metric you want graphed
@@ -39,7 +44,7 @@ def run_model(TESTDIR, TRAINDIR, run_name, modelType, embedding_dimension, vocab
     if (modelType == "glove"):
         model_with_tokenized_data = run_glove(
             embedding_dimension, vocab_size, padding_cutoff, dataset)
-    elif (modelType == "custom"):
+    elif (modelType == "custom_embeddings"):
         model_with_tokenized_data = run_with_custom_embeddings(
             embedding_dimension, vocab_size, padding_cutoff, dataset)
     else:
@@ -67,11 +72,11 @@ def run_glove(embedding_dimension, vocab_size,
         vocab_size, embedding_dimension)
 
     # associate each word in the dataset with an int
-    converted_test = words_to_glove_idx(train_data, word2idx, UNKNOWN_TOKEN)
-    converted_train = words_to_glove_idx(test_data, word2idx, UNKNOWN_TOKEN)
+    converted_test = words_to_glove_idx(test_data, word2idx, UNKNOWN_TOKEN)
+    converted_train = words_to_glove_idx(train_data, word2idx, UNKNOWN_TOKEN)
 
     # pad the data so all examples are of the same length
-    max_len = get_x_percent_length(80, train_data)
+    max_len = get_x_percent_length(padding_cutoff, train_data)
     padded_test = pad_sequences(
         converted_test, maxlen=(max_len), padding="post", truncating="post")
     padded_train = pad_sequences(
@@ -80,18 +85,10 @@ def run_glove(embedding_dimension, vocab_size,
     # buld the model
     classifier_model = build_glove_classifier_model(
         vocab_size, embedding_dimension, embedding_layer)
-    model = classifier_model.compile(loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True),
-                                     optimizer=tf.keras.optimizers.Adam(),
-                                     metrics=[tf.keras.metrics.CategoricalAccuracy()])
-    return(model, padded_test, padded_train)
-
-
-# TESTDIR = "./20news-bydate/20news-bydate-test"
-# TRAINDIR = "./20news-bydate/20news-bydate-train"
-
-# embedding_dimension = 100
-# use_glove = True
-# if(use_glove):
+    classifier_model.compile(loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True),
+                             optimizer=tf.keras.optimizers.Adam(),
+                             metrics=[tf.keras.metrics.CategoricalAccuracy()])
+    return(classifier_model, padded_test, padded_train)
 
 
 def run_with_custom_embeddings(embedding_dimension, vocab_size, padding_cutoff, dataset):
@@ -102,7 +99,7 @@ def run_with_custom_embeddings(embedding_dimension, vocab_size, padding_cutoff, 
     tokenizer = createTokenizer(train_data, vocab_size,  "<OOV>")
 
     # created padded test sequences
-    max_len = get_x_percent_length(80, train_data)
+    max_len = get_x_percent_length(padding_cutoff, train_data)
     padded_test = handle_padding(max_len, test_data, tokenizer)
     padded_train = handle_padding(max_len, train_data, tokenizer)
 
@@ -112,9 +109,63 @@ def run_with_custom_embeddings(embedding_dimension, vocab_size, padding_cutoff, 
                                                      verbose=1)
 
     # buld the model
-    classifier_model = build_classifier_model(10000, embedding_dimension)
-    model = classifier_model.compile(loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True),
-                                     optimizer=tf.keras.optimizers.Adam(),
-                                     metrics=[tf.keras.metrics.CategoricalAccuracy()])
+    classifier_model = build_classifier_model(vocab_size, embedding_dimension)
+    classifier_model.compile(loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True),
+                             optimizer=tf.keras.optimizers.Adam(),
+                             metrics=[tf.keras.metrics.CategoricalAccuracy()])
 
-    return(model, padded_test, padded_train)
+    return(classifier_model, padded_test, padded_train)
+
+
+def collect_input_from_user():
+    # gets the current date
+    today = date.today()
+    correctedForm = today.strftime("%b-%d-%Y")
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-tp", "--test_path",
+                        help="Path to the 20NG test dataset", default="./20news-bydate/20news-bydate-test")
+    parser.add_argument("-trp", "--train_path",
+                        help="Path to the 20NG train dataset", default="./20news-bydate/20news-bydate-train")
+    parser.add_argument("-vs", "--vocab_size", type=int,
+                        help="Vocab size to be used in the model", default=100000)
+    parser.add_argument("-ed", "--embedding_dimension", type=int,
+                        help="Number of dimensions used in the vector space to represent words. Must be 50, 100, 200, 300 while using glove", default=100)
+    parser.add_argument("-e", "--epochs", type=int,
+                        help="number of epochs to be trained on", default=10)
+    parser.add_argument(
+        "-rn", "--run_name", help="name that will be saved for this training run", default=correctedForm)
+
+    parser.add_argument(
+        "-pc", "--padding_cutoff", type=int, help="Percentage of your dataset that will not be cut off by padding",
+        default=80)
+    args = parser.parse_args()
+
+    model_type = enquiries.choose('Pick a model to run', [
+        "glove", "custom_embeddings"])
+
+    # run checks to make sure arguements are valid
+
+    if(args.vocab_size < 0):
+        raise ValueError("Vocab Size cannot be negative")
+
+    if(args.vocab_size < 0):
+        raise ValueError("Vocab Size cannot be negative")
+
+    if(args.embedding_dimension < 0):
+        raise ValueError("Embedding dimensions cannot be negative")
+
+    if(args.epochs < 0 or args.epochs > 50):
+        raise ValueError("Number of Epochs must be between 0 and 50")
+
+    if(args.padding_cutoff < 0 or args.padding_cutoff > 100):
+        raise ValueError("Percentage to not cutoff must be between 0 and 100")
+
+    if (model_type == "glove" and args.embedding_dimension not in [50, 100, 200, 300]):
+        return ValueError("Glove embedding dimension must be 50, 100, 200, or 300 ")
+
+    run_model(args.test_path, args.train_path, args.run_name, model_type,
+              args.embedding_dimension, args.vocab_size, args.epochs, args.padding_cutoff)
+
+
+collect_input_from_user()
