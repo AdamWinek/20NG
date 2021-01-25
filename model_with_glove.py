@@ -40,7 +40,8 @@ def construct_embedding_layer(vocab_size, embedding_dimension):
             weights.append(word_weights)
 
             if index + 1 == vocab_size:
-                # Limit vocabulary to top 40k terms
+                # Limit vocabulary to top x
+                #  terms
                 break
 
     # Insert the PAD weights at index 0 now we know the embedding dimension

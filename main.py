@@ -50,9 +50,13 @@ def run_model(TESTDIR, TRAINDIR, run_name, modelType, embedding_dimension, vocab
     else:
         raise(RuntimeError("incorrect model information passed in"))
 
+    log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    tensorboard_callback = tf.keras.callbacks.TensorBoard(
+        log_dir=log_dir, histogram_freq=1)
+
     (compiled_model, vectorized_test, vectorized_train) = model_with_tokenized_data
     history = compiled_model.fit(np.array(vectorized_train), train_labels, epochs=training_epochs,
-                                 callbacks=[cp_callback], shuffle=True, validation_data=(vectorized_test, test_labels))
+                                 callbacks=[cp_callback, tensorboard_callback], shuffle=True, validation_data=(vectorized_test, test_labels))
 
     # prints metrics related to the training
     plot_graphs(history, "accuracy")
